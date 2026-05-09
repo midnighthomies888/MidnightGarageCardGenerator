@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>午夜車庫-汽車銷售卡片產生器</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+TC:wght@300;400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f; --surface: #16181c; --surface2: #1e2127;
+    --border: #2a2d35; --accent: #e8b84b; --accent2: #ff5f35;
+    --text: #f0ede8; --muted: #7a7d87; --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; padding: 48px 24px;
+  }
+  .header { text-align: center; margin-bottom: 48px; }
+  .header-eyebrow { font-size: 11px; letter-spacing: 0.35em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px; }
+  .header h1 { font-family: 'Bebas Neue', sans-serif; font-size: clamp(42px,7vw,72px); letter-spacing: 0.06em; line-height: 1; }
+  .header h1 span { color: var(--accent); }
+  .layout { display: grid; grid-template-columns: 420px 1fr; gap: 32px; width: 100%; max-width: 1100px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .form-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; display: flex; flex-direction: column; gap: 18px; }
+  .panel-title { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .section-divider { font-size: 10px; letter-spacing: 0.25em; text-transform: uppercase; color: var(--accent); opacity: 0.8; margin-top: 4px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .field input, .field select {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-family: 'Noto Sans TC', sans-serif; font-size: 15px;
+    padding: 10px 14px; outline: none; transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(232,184,75,0.15); }
+  .field input::placeholder { color: var(--muted); opacity: 0.6; }
+  .field select option { background: var(--surface2); }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .upload-zone {
+    background: var(--surface2); border: 2px dashed var(--border); border-radius: 8px;
+    padding: 22px 16px; text-align: center; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s; position: relative; overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent); background: rgba(232,184,75,0.05); }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 24px; margin-bottom: 6px; }
+  .upload-text { font-size: 12px; color: var(--muted); line-height: 1.6; }
+  .upload-text strong { color: var(--accent); }
+  .upload-preview { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; display: none; margin-top: 10px; }
+  .upload-preview-contain { width: 100%; height: 80px; object-fit: contain; border-radius: 6px; display: none; margin-top: 10px; }
+  .badge-row { display: flex; gap: 8px; align-items: center; }
+  .badge-color-wrap { display: flex; align-items: center; gap: 8px; }
+  .badge-color { width: 32px; height: 32px; border-radius: 6px; border: 2px solid var(--border); cursor: pointer; background: #ff5f35; flex-shrink: 0; }
+  .btn-download {
+    background: var(--accent); color: #000; border: none; border-radius: 8px;
+    font-family: 'Noto Sans TC', sans-serif; font-size: 14px; font-weight: 900;
+    letter-spacing: 0.08em; text-transform: uppercase; padding: 14px; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s; margin-top: 4px;
+  }
+  .btn-download:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(232,184,75,0.35); }
+  .btn-download:active { transform: translateY(0); }
+  .preview-panel { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 32px; }
+  .panel-title-preview { font-size: 11px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted); }
+  .canvas-wrapper { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); line-height: 0; box-shadow: 0 24px 60px rgba(0,0,0,0.5); }
+  #previewCanvas { width: 100%; height: auto; display: block; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-eyebrow">Midnight Garage 午夜車庫</div>
+  <h1>汽車銷售<span>卡片</span>產生器</h1>
+</div>
+
+<div class="layout">
+  <div class="form-panel">
+    <div class="panel-title">填入資訊</div>
+
+    <div class="section-divider">▸ 車行資訊</div>
+
+    <div class="field">
+      <label>車行 Logo（右上角）</label>
+      <div class="upload-zone" id="logoZone">
+        <input type="file" id="logoImage" accept="image/*">
+        <div class="upload-icon">🏢</div>
+        <div class="upload-text">上傳車行 Logo<br><strong>建議使用透明背景 PNG</strong></div>
+        <img id="logoPreview" class="upload-preview-contain" alt="logo">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>版權宣告（卡片底部）</label>
+      <input type="text" id="carCopyright" value="© 2026 午夜車庫 版權所有" placeholder="例：© 2026 午夜車庫 版權所有" oninput="renderCard()">
+    </div>
+
+    <div class="section-divider">▸ 車輛資訊</div>
+
+    <div class="field">
+      <label>汽車圖片</label>
+      <div class="upload-zone" id="carZone">
+        <input type="file" id="carImage" accept="image/*">
+        <div class="upload-icon">🚗</div>
+        <div class="upload-text">點擊或拖曳上傳圖片<br><strong>支援 JPG、PNG、WEBP</strong></div>
+        <img id="carPreview" class="upload-preview" alt="car">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>標籤文字（左上角紅色標籤）</label>
+      <div class="badge-color-wrap">
+        <input type="color" class="badge-color" id="badgeColor" value="#ff5f35" oninput="renderCard()">
+        <input type="text" id="badgeText" placeholder="例：FOR SALE、限時特賣、精選車款" oninput="renderCard()" style="width:310px">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>車款名稱</label>
+      <input type="text" id="carName" placeholder="例：Toyota Camry" oninput="renderCard()">
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>車款年份</label>
+        <input type="text" id="carYear" placeholder="例：2026" oninput="renderCard()">
+      </div>
+    </div>
+
+        <div class="field-row">
+      <div class="field">
+        <label>車身顏色</label>
+        <input type="text" id="carColor" placeholder="例：珍珠白" oninput="renderCard()">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>里程數</label>
+        <input type="text" id="carMileage" placeholder="例：88,888 km" oninput="renderCard()">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>引擎動力</label>
+        <input type="text" id="carEngine" placeholder="例：2.0L / 汽油" oninput="renderCard()">
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label>變速箱</label>
+        <select id="carTrans" onchange="renderCard()">
+          <option value="">請選擇</option>
+          <option>自排</option><option>手排</option><option>CVT</option><option>ECVT</option>
+          <option>雙離合器</option><option>純電</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>驅動方式</label>
+        <select id="carDrive" onchange="renderCard()">
+          <option value="">請選擇</option>
+          <option>前輪驅動 FWD</option><option>後輪驅動 RWD</option>
+          <option>四輪驅動 AWD</option><option>四輪驅動 4WD</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>預售價格</label>
+      <input type="text" id="carPrice" placeholder="例：NT$ 888,888" oninput="renderCard()">
+    </div>
+
+    <div class="field">
+      <label>聯絡電話</label>
+      <input type="text" id="carPhone" placeholder="例：洪業務 / 0912-345-678" oninput="renderCard()">
+    </div>
+
+    <button class="btn-download" onclick="downloadCard()">⬇ 下載圖片</button>
+  </div>
+
+  <div class="preview-panel">
+    <div class="panel-title-preview">即時預覽</div>
+    <div class="canvas-wrapper">
+      <canvas id="previewCanvas" width="900" height="540"></canvas>
+    </div>
+    <div class="hint">填入資訊後即時更新 · 點擊下載儲存圖片</div>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('previewCanvas');
+  const ctx = canvas.getContext('2d');
+  let carImg = null, logoImg = null;
+
+  // Default badge text
+  document.getElementById('badgeText').value = '精選車款';
+
+  setupUpload('carImage',  'carZone',  'carPreview',  false, img => { carImg  = img; renderCard(); });
+  setupUpload('logoImage', 'logoZone', 'logoPreview', true,  img => { logoImg = img; renderCard(); });
+
+  function setupUpload(inputId, zoneId, previewId, contain, cb) {
+    const input = document.getElementById(inputId);
+    const zone  = document.getElementById(zoneId);
+    const prev  = document.getElementById(previewId);
+    function load(file) {
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const img = new Image();
+        img.onload = () => {
+          prev.src = ev.target.result; prev.style.display = 'block';
+          zone.querySelector('.upload-icon').style.display = 'none';
+          zone.querySelector('.upload-text').style.display = 'none';
+          cb(img);
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+    input.addEventListener('change', e => { if (e.target.files[0]) load(e.target.files[0]); });
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault(); zone.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) load(e.dataTransfer.files[0]);
+    });
+  }
+
+  function v(id) { return document.getElementById(id).value.trim(); }
+
+  // Wrap text into lines within maxW
+  function wrapText(ctx, text, maxW) {
+    if (!text) return ['—'];
+    const words = text.split('');
+    // For CJK + mixed, wrap char by char
+    const lines = [];
+    let line = '';
+    for (const ch of text) {
+      const test = line + ch;
+      if (ctx.measureText(test).width > maxW && line !== '') {
+        lines.push(line);
+        line = ch;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : ['—'];
+  }
+
+  // Draw multi-line text, returns total height used
+  function drawWrapped(ctx, text, x, y, maxW, lineH) {
+    const lines = wrapText(ctx, text, maxW);
+    lines.forEach((l, i) => ctx.fillText(l, x, y + i * lineH));
+    return lines.length * lineH;
+  }
+
+  function renderCard() {
+    const W = 900, H = 540;
+    ctx.clearRect(0, 0, W, H);
+
+    const name      = v('carName')      || '車款名稱';
+    const year      = v('carYear')      || '----';
+    const mileage   = v('carMileage')   || '--- km';
+    const price     = v('carPrice')     || 'NT$ ---';
+    const color     = v('carColor')     || '—';
+    const engine    = v('carEngine')    || '—';
+    const trans     = v('carTrans')     || '—';
+    const drive     = v('carDrive')     || '—';
+    const phone     = v('carPhone');
+    const copyright = v('carCopyright');
+    const badgeText = v('badgeText')    || 'FOR SALE';
+    const badgeColor = document.getElementById('badgeColor').value;
+
+    // BG
+    const bgG = ctx.createLinearGradient(0,0,W,H);
+    bgG.addColorStop(0,'#0c0c10'); bgG.addColorStop(1,'#191b22');
+    ctx.fillStyle = bgG; ctx.fillRect(0,0,W,H);
+    for (let i=0;i<7000;i++) {
+      ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.03})`;
+      ctx.fillRect(Math.random()*W,Math.random()*H,1,1);
+    }
+
+    // Car image
+    const imgBound = W * 0.615;
+    if (carImg) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(0,0,imgBound,H); ctx.clip();
+      const a = carImg.width/carImg.height;
+      let iw=imgBound, ih=iw/a;
+      if (ih<H){ih=H;iw=ih*a;}
+      ctx.drawImage(carImg,(imgBound-iw)/2,(H-ih)/2,iw,ih);
+      ctx.restore();
+    } else {
+      ctx.fillStyle='#17191f'; ctx.fillRect(0,0,imgBound,H);
+      ctx.font='90px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle='#2a2d35'; ctx.fillText('🚗',imgBound/2,H/2);
+    }
+    const fade = ctx.createLinearGradient(W*0.3,0,imgBound,0);
+    fade.addColorStop(0,'rgba(12,12,16,0)'); fade.addColorStop(1,'rgba(12,12,16,1)');
+    ctx.fillStyle=fade; ctx.fillRect(0,0,imgBound,H);
+
+    // Right panel
+    ctx.fillStyle='rgba(12,12,16,0.93)';
+    ctx.fillRect(imgBound-8,0,W-imgBound+8,H);
+
+    // Gold bar
+    ctx.fillStyle='#e8b84b'; ctx.fillRect(W*0.602,52,3,H-96);
+
+    const px = W*0.632;
+    const contentW = W - px - 24;   // available width for right panel content
+
+    // ── LOGO top-right (larger) ──
+    if (logoImg) {
+      const lh = 72;
+      const lw = Math.min(lh*(logoImg.width/logoImg.height), 200);
+      ctx.drawImage(logoImg, W-lw-18, 14, lw, lh);
+    }
+
+    // Badge
+    ctx.save();
+    ctx.font = 'bold 14px "Noto Sans TC"';
+    const badgeW = Math.max(ctx.measureText(badgeText).width + 28, 80);
+    ctx.fillStyle = badgeColor;
+    roundRect(ctx, px, 38, badgeW, 34, 5); ctx.fill();
+    ctx.fillStyle='#fff';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(badgeText, px + badgeW/2, 55);
+    ctx.restore();
+
+    // Year badge
+    ctx.save();
+    ctx.fillStyle='rgba(232,184,75,0.14)';
+    roundRect(ctx,px,82,116,30,5); ctx.fill();
+    ctx.fillStyle='#e8b84b'; ctx.font='bold 16px "Noto Sans TC"';
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(`${year}  年`, px+58, 97);
+    ctx.restore();
+
+    // Car name
+    ctx.save();
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    const parts = splitName(name);
+    if (parts.brand) {
+      ctx.fillStyle='#e8b84b'; ctx.font='bold 17px "Noto Sans TC"';
+      ctx.fillText(parts.brand.toUpperCase(), px, 158);
+      ctx.fillStyle='#f0ede8';
+      fitText(ctx, parts.model, px, 212, contentW, 46, 'bold');
+    } else {
+      ctx.fillStyle='#f0ede8';
+      fitText(ctx, name, px, 212, contentW, 44, 'bold');
+    }
+    ctx.restore();
+
+    // Divider
+    ctx.strokeStyle='#2a2d35'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(px,232); ctx.lineTo(W-24,232); ctx.stroke();
+
+    // Stats grid — 2 columns, text wraps
+    const colW = contentW / 2 - 8;
+    const stats = [
+      { label:'里程數',  value: mileage },
+      { label:'車身顏色', value: color   },
+      { label:'引擎動力', value: engine  },
+      { label:'變速箱',  value: trans   },
+      { label:'驅動方式', value: drive   },
+    ];
+
+    stats.forEach((s, i) => {
+      const col = i%2, row = Math.floor(i/2);
+      const sx = px + col*(colW+16);
+      const sy = 254 + row*66;
+      ctx.save();
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      // Label
+      ctx.fillStyle='#7a7d87'; ctx.font='12px "Noto Sans TC"';
+      ctx.fillText(s.label, sx, sy);
+      // Value — wrapped
+      ctx.fillStyle='#f0ede8'; ctx.font='bold 18px "Noto Sans TC"';
+      drawWrapped(ctx, s.value, sx, sy+24, colW, 22);
+      ctx.restore();
+    });
+
+    // Price
+    const priceY = H - (phone ? 86 : copyright ? 60 : 50);
+    ctx.save();
+    ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+    ctx.fillStyle='#7a7d87'; ctx.font='13px "Noto Sans TC"';
+    ctx.fillText('預售價格', px, priceY);
+    ctx.fillStyle='#e8b84b';
+    fitText(ctx, price, px, priceY+34, contentW, 34, 'bold');
+    ctx.restore();
+
+    // Phone
+    if (phone) {
+      ctx.save();
+      ctx.fillStyle='#b0b0b0'; ctx.font='15px "Noto Sans TC"';
+      ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+      ctx.fillText('📞  '+phone, px, H-28);
+      ctx.restore();
+    }
+
+    // Bottom bar
+    ctx.save();
+    const bG = ctx.createLinearGradient(0,H-40,0,H);
+    bG.addColorStop(0,'rgba(12,12,16,0)'); bG.addColorStop(1,'rgba(12,12,16,0.9)');
+    ctx.fillStyle=bG; ctx.fillRect(0,H-40,W,40);
+
+    // Copyright — left side of bar
+    if (copyright) {
+      ctx.fillStyle='rgba(255,255,255,0.55)';
+      ctx.font='11px "Noto Sans TC"';
+      ctx.textAlign='left'; ctx.textBaseline='bottom';
+      ctx.fillText(copyright, 18, H-10);
+    }
+    // Studio watermark — right side
+    ctx.fillStyle='rgba(255,255,255,0.16)';
+    ctx.font='16px "Noto Sans TC"';
+    ctx.textAlign='right'; ctx.textBaseline='bottom';
+    ctx.fillText('Midnight Garage 午夜車庫', W-16, H-10);
+    ctx.restore();
+  }
+
+  function splitName(name) {
+    const brands=['Toyota','Honda','Mazda','Nissan','Ford','BMW','Benz','Mercedes','Audi','Lexus',
+      'Hyundai','Kia','Volvo','Tesla','Volkswagen','VW','Subaru','Mitsubishi','Suzuki','Porsche',
+      'Ferrari','Lamborghini','Skoda','Peugeot','Renault','Land Rover','Jaguar','Mini','Alfa Romeo'];
+    for (const b of brands) {
+      if (name.toLowerCase().startsWith(b.toLowerCase()))
+        return {brand:b, model:name.slice(b.length).trim()};
+    }
+    const p=name.split(' ');
+    if (p.length>=2) return {brand:p[0], model:p.slice(1).join(' ')};
+    return {brand:'', model:name};
+  }
+
+  function fitText(ctx, text, x, y, maxW, size, weight) {
+    let s=size;
+    ctx.font=`${weight} ${s}px "Noto Sans TC"`;
+    while(ctx.measureText(text).width>maxW && s>12){s--;ctx.font=`${weight} ${s}px "Noto Sans TC"`;}
+    ctx.fillText(text,x,y);
+  }
+
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
+  }
+
+  function downloadCard() {
+    renderCard();
+    const a = document.createElement('a');
+    a.download=`${(v('carName')||'car').replace(/\s+/g,'-')}-card.png`;
+    a.href=canvas.toDataURL('image/png'); a.click();
+  }
+
+  renderCard();
+</script>
+<footer class="copyright">
+  © 2026 Midnight Homies Club Harry Hung. All Rights Reserved.
+</footer>
+</body>
+</html>
